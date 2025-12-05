@@ -9,7 +9,7 @@ declare global {
             fail(
                 message: string,
                 statusCode?: number,
-                details?: Record<string, unknown>,
+                details?: unknown,
             ): this
         }
     }
@@ -26,7 +26,7 @@ export type ApiResponse<T = unknown> = {
     success: boolean
     message?: string
     data?: T
-    details?: Record<string, unknown>
+    details?: unknown
 }
 
 declare global {

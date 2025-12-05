@@ -5,16 +5,17 @@ import { Mail, Lock, Eye, EyeOff, User } from 'lucide-react'
 import { Button, Input } from '@/components/ui'
 import { registerSchema, type RegisterFormData } from '@/lib/validators'
 import { useAuthStore } from '@/stores'
-import { mockApi } from '@/services'
+import { api } from '@/services'
 
 interface RegisterFormProps {
     onSwitchToLogin: () => void
+    onRegistered: (input: { email: string; name: string; userId?: string }) => void
 }
 
-export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
+export function RegisterForm({ onSwitchToLogin, onRegistered }: RegisterFormProps) {
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-    const { login, setLoading, isLoading } = useAuthStore()
+    const { setLoading, isLoading } = useAuthStore()
 
     const {
         register,
@@ -27,16 +28,25 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             name: '',
             email: '',
             password: '',
-            confirmPassword: '',
+            passwordConfirmation: '',
         },
     })
 
     const onSubmit = async (data: RegisterFormData) => {
         try {
             setLoading(true)
-            const response = await mockApi.auth.register(data)
-            // Mock data will be loaded in ChatLayout after redirect
-            login(response.user, response.token)
+            const response = await api.auth.register({
+                name: data.name,
+                email: data.email,
+                password: data.password,
+                passwordConfirmation: data.passwordConfirmation,
+            })
+            onRegistered({
+                email: response.email,
+                name: data.name,
+                userId: response.userId,
+            })
+            setLoading(false)
         } catch (error) {
             setError('root', {
                 message:
@@ -94,11 +104,11 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             />
 
             <Input
-                {...register('confirmPassword')}
+                {...register('passwordConfirmation')}
                 type={showConfirmPassword ? 'text' : 'password'}
                 label="Confirm Password"
                 placeholder="Confirm your password"
-                error={errors.confirmPassword?.message}
+                error={errors.passwordConfirmation?.message}
                 leftIcon={<Lock className="h-4 w-4" />}
                 rightIcon={
                     <button

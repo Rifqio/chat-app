@@ -1,12 +1,12 @@
 export class AppError extends Error {
     statusCode: number
-    details?: Record<string, unknown> | undefined
+    details?: unknown
     isOperational: boolean
 
     constructor (
         message: string,
         statusCode = 500,
-        details?: Record<string, unknown>,
+        details?: unknown,
     ) {
         super(message)
         this.name = this.constructor.name

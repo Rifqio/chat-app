@@ -7,7 +7,13 @@ import type {
 } from '@/types'
 import axios, { type AxiosRequestConfig, type AxiosError } from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+
+type ApiResponse<T> = {
+    success: boolean
+    message?: string
+    data?: T
+}
 
 // Create axios instance with base URL
 const apiClient = axios.create({
@@ -29,9 +35,7 @@ apiClient.interceptors.request.use(
 
         return config
     },
-    (error) => {
-        return Promise.reject(error)
-    },
+    (error) => Promise.reject(error),
 )
 
 // Response interceptor to handle errors
@@ -48,25 +52,41 @@ async function request<T>(
     endpoint: string,
     options: AxiosRequestConfig = {},
 ): Promise<T> {
-    const response = await apiClient.request<T>({
+    const response = await apiClient.request<ApiResponse<T>>({
         url: endpoint,
         ...options,
     })
 
-    return response.data
+    const payload = response.data
+    if (!payload.success) {
+        throw new Error(payload.message || 'Request failed')
+    }
+    return (payload.data as T) ?? ({} as T)
 }
 
 export const authApi = {
     login: (credentials: LoginCredentials) =>
-        request<{ user: User; token: string }>('/auth/login', {
+        request<{ token: string; user: User }>('/auth/login', {
             method: 'POST',
             data: credentials,
         }),
 
     register: (credentials: RegisterCredentials) =>
-        request<{ user: User; token: string }>('/auth/register', {
+        request<{ userId: string; email: string }>('/auth/register', {
             method: 'POST',
             data: credentials,
+        }),
+
+    verify: (input: { email: string; code: string }) =>
+        request<{ token: string; user: User }>('/auth/verify', {
+            method: 'POST',
+            data: input,
+        }),
+
+    resend: (input: { email: string }) =>
+        request<{ email: string }>('/auth/resend', {
+            method: 'POST',
+            data: input,
         }),
 
     me: () => request<User>('/auth/me'),

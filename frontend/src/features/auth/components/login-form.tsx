@@ -5,7 +5,7 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { Button, Input } from '@/components/ui'
 import { loginSchema, type LoginFormData } from '@/lib/validators'
 import { useAuthStore } from '@/stores'
-import { mockApi } from '@/services'
+import { api } from '@/services'
 
 interface LoginFormProps {
     onSwitchToRegister: () => void
@@ -31,9 +31,15 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     const onSubmit = async (data: LoginFormData) => {
         try {
             setLoading(true)
-            const response = await mockApi.auth.login(data)
-            // Mock data will be loaded in ChatLayout after redirect
-            login(response.user, response.token)
+            const response = await api.auth.login(data)
+            const user = {
+                ...response.user,
+                // Fallbacks for optional fields
+                avatar: response.user.avatar || undefined,
+                about: response.user.about || '',
+                status: 'online' as const,
+            }
+            login(user, response.token)
         } catch (error) {
             setError('root', {
                 message:

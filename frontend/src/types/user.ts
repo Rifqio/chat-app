@@ -5,8 +5,10 @@ export interface User {
   email: string;
   name: string;
   avatar?: string;
+  about?: string;
   status: UserStatus;
   lastSeen?: Date;
   createdAt: Date;
+  lastLoginAt?: Date;
 }
 

@@ -30,11 +30,13 @@ export const registerSchema = z
                 /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
                 'Password must contain at least one uppercase letter, one lowercase letter, and one number',
             ),
-        confirmPassword: z.string().min(1, 'Please confirm your password'),
+        passwordConfirmation: z
+            .string()
+            .min(1, 'Confirmation password is required'),
     })
-    .refine((data) => data.password === data.confirmPassword, {
+    .refine((data) => data.password === data.passwordConfirmation, {
         message: 'Passwords do not match',
-        path: ['confirmPassword'],
+        path: ['passwordConfirmation'],
     })
 
 export type LoginFormData = z.infer<typeof loginSchema>
