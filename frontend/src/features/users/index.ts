@@ -1,0 +1,2 @@
+export { AvailableUsersList } from './components';
+
