@@ -4,8 +4,11 @@ import type { Message, TypingIndicator, User } from '@/types'
 type WebSocketEvents = {
     connect: () => void
     disconnect: () => void
+    'presence:update': (data: { userId: string; status: 'online' | 'offline'; onlineCount: number }) => void
+    'presence:summary': (data: { onlineUsers: string[]; onlineCount: number }) => void
     'user:online': (user: User) => void
     'user:offline': (userId: string) => void
+    'user:update': (user: User) => void
     'message:new': (message: Message) => void
     'message:delivered': (data: {
         messageId: string
@@ -26,16 +29,16 @@ class WebSocketService {
         new Map()
 
     connect (
-        token: string,
+        userId: string,
         serverUrl: string = import.meta.env.VITE_WS_URL ||
-            'http://localhost:3001',
+            'http://localhost:3000',
     ) {
         if (this.socket?.connected) {
             return
         }
 
         this.socket = io(serverUrl, {
-            auth: { token },
+            auth: { userId },
             transports: ['websocket'],
             reconnection: true,
             reconnectionAttempts: 5,
@@ -59,8 +62,11 @@ class WebSocketService {
 
         // Forward all events to registered listeners
         const events = [
+            'presence:update',
+            'presence:summary',
             'user:online',
             'user:offline',
+            'user:update',
             'message:new',
             'message:delivered',
             'message:read',
@@ -106,8 +112,8 @@ class WebSocketService {
         this.listeners.get(event)?.forEach((callback) => callback(...args))
     }
 
-    sendMessage (conversationId: string, content: string, imageUrl?: string) {
-        this.socket?.emit('message:send', { conversationId, content, imageUrl })
+    sendMessage (conversationId: string, content: string, mediaKey?: string, mediaMimeType?: string) {
+        this.socket?.emit('message:send', { conversationId, content, mediaKey, mediaMimeType })
     }
 
     markAsDelivered (conversationId: string, messageId: string) {

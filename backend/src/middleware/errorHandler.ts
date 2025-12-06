@@ -3,6 +3,7 @@ import { logger } from '../config/logger.js'
 import { AppError } from '../errors/AppError.js'
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+    logger.error(err)
     const appError =
         err instanceof AppError
             ? err

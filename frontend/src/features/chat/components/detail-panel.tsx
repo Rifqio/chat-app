@@ -1,40 +1,40 @@
-import { X, ImageIcon } from 'lucide-react'
-import { Avatar, Button } from '@/components/ui'
-import { useAuthStore, useChatStore } from '@/stores'
-import { useMemo } from 'react'
+import { X, ImageIcon } from 'lucide-react';
+import { Avatar, Button } from '@/components/ui';
+import { useAuthStore, useChatStore } from '@/stores';
+import { useMemo } from 'react';
 
 export function DetailPanel() {
-    const { user: currentUser } = useAuthStore()
+    const { user: currentUser } = useAuthStore();
     const {
         conversations,
         messages,
         activeConversationId,
         isDetailPanelOpen,
         setDetailPanelOpen,
-    } = useChatStore()
+    } = useChatStore();
 
     const activeConversation = conversations.find(
         (c) => c.id === activeConversationId,
-    )
+    );
 
     const otherParticipant = useMemo(() => {
-        if (!activeConversation || !currentUser) return null
+        if (!activeConversation || !currentUser) return null;
         return activeConversation.participants.find(
             (p) => p.id !== currentUser.id,
-        )
-    }, [activeConversation, currentUser])
+        );
+    }, [activeConversation, currentUser]);
 
     // Filter photos from messages
     const photoItems = useMemo(() => {
         const conversationMessages = activeConversationId
             ? messages[activeConversationId] || []
-            : []
+            : [];
         return conversationMessages
             .filter((msg) => msg.imageUrl)
-            .map((msg) => msg.imageUrl!)
-    }, [activeConversationId, messages])
+            .map((msg) => msg.imageUrl!);
+    }, [activeConversationId, messages]);
 
-    if (!isDetailPanelOpen || !otherParticipant) return null
+    if (!isDetailPanelOpen || !otherParticipant) return null;
 
     return (
         <aside className="w-80 border-l border-slate-200 bg-white flex flex-col h-full">
@@ -63,7 +63,9 @@ export function DetailPanel() {
                     {otherParticipant.name}
                 </h3>
                 <p className="text-sm text-slate-500">
-                    {otherParticipant.status === 'online' ? 'Online' : 'Offline'}
+                    {otherParticipant.status === 'online'
+                        ? 'Online'
+                        : 'Offline'}
                 </p>
             </div>
 
@@ -73,7 +75,9 @@ export function DetailPanel() {
                     About
                 </h4>
                 <p className="text-sm text-slate-700">
-                    {otherParticipant.email}
+                    {otherParticipant.about?.trim()
+                        ? otherParticipant.about
+                        : 'No about set yet.'}
                 </p>
             </div>
 
@@ -119,5 +123,5 @@ export function DetailPanel() {
                 </div>
             </div>
         </aside>
-    )
+    );
 }

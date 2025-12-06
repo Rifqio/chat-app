@@ -2,20 +2,23 @@ import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
 import { Send, ImagePlus, X, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { cn } from '@/lib/utils'
+import { api } from '@/services'
 
 // Allowed image extensions and MIME types
-const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp']
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp']
 const ALLOWED_MIME_TYPES = [
     'image/jpeg',
     'image/png',
-    'image/gif',
     'image/webp',
-    'image/bmp',
 ]
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
 interface MessageComposerProps {
-    onSend: (content: string, imageUrl?: string) => void
+    conversationId: string | null
+    onSend: (
+        content: string,
+        media?: { key: string; url?: string; mimeType?: string },
+    ) => void
     onTypingStart: () => void
     onTypingStop: () => void
     disabled?: boolean
@@ -52,6 +55,7 @@ function validateImageFile(file: File): { valid: boolean; error?: string } {
 }
 
 export function MessageComposer({
+    conversationId,
     onSend,
     onTypingStart,
     onTypingStop,
@@ -59,6 +63,9 @@ export function MessageComposer({
 }: MessageComposerProps) {
     const [message, setMessage] = useState('')
     const [imagePreview, setImagePreview] = useState<string | null>(null)
+    const [mediaKey, setMediaKey] = useState<string | null>(null)
+    const [uploadProgress, setUploadProgress] = useState<number>(0)
+    const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
     const [imageError, setImageError] = useState<string | null>(null)
     const [isMentionOpen, setIsMentionOpen] = useState(false)
     const [mentionQuery, setMentionQuery] = useState('')
@@ -131,11 +138,14 @@ export function MessageComposer({
     }
 
     const handleSend = () => {
-        if (!message.trim() && !imagePreview) return
+        if (!message.trim() && !mediaKey) return
 
-        onSend(message.trim(), imagePreview || undefined)
+        onSend(message.trim(), mediaKey ? { key: mediaKey, url: imagePreview || undefined } : undefined)
         setMessage('')
         setImagePreview(null)
+        setMediaKey(null)
+        setUploadProgress(0)
+        setUploadStatus('idle')
         setImageError(null)
         resetMention()
         onTypingStop()
@@ -213,23 +223,47 @@ export function MessageComposer({
             return
         }
 
-        // Read and preview
-        const reader = new FileReader()
-        reader.onloadend = () => {
-            setImagePreview(reader.result as string)
+        if (!conversationId) {
+            setImageError('Select a conversation first')
+            return
         }
-        reader.readAsDataURL(file)
+
+        setUploadStatus('uploading')
+        setUploadProgress(0)
+
+        try {
+            const result = await api.messages.uploadMedia(
+                conversationId,
+                file,
+                (progress: number) => setUploadProgress(progress),
+            )
+            setMediaKey(result.key)
+            setImagePreview(result.url)
+            setUploadStatus('success')
+            setUploadProgress(100)
+        } catch (err) {
+            console.error('Media upload failed', err)
+            setImageError('Upload failed. Please try again.')
+            setUploadStatus('error')
+            setUploadProgress(0)
+            if (fileInputRef.current) {
+                fileInputRef.current.value = ''
+            }
+        }
     }
 
     const removeImage = () => {
         setImagePreview(null)
         setImageError(null)
+        setMediaKey(null)
+        setUploadProgress(0)
+        setUploadStatus('idle')
         if (fileInputRef.current) {
             fileInputRef.current.value = ''
         }
     }
 
-    const canSend = (message.trim() || imagePreview) && !disabled
+    const canSend = (message.trim() || mediaKey) && !disabled
 
     return (
         <div className="border-t border-slate-200 bg-white p-4">
@@ -260,6 +294,32 @@ export function MessageComposer({
                     >
                         <X className="h-3 w-3" />
                     </button>
+                    {uploadStatus !== 'idle' && (
+                        <div className="mt-2">
+                            <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden">
+                                <div
+                                    className={cn(
+                                        'h-full transition-all',
+                                        uploadStatus === 'success'
+                                            ? 'bg-emerald-500'
+                                            : uploadStatus === 'error'
+                                              ? 'bg-red-500'
+                                              : 'bg-blue-500',
+                                    )}
+                                    style={{ width: `${uploadProgress}%` }}
+                                />
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">
+                                {uploadStatus === 'uploading'
+                                    ? `Uploading... ${uploadProgress}%`
+                                    : uploadStatus === 'success'
+                                      ? 'Upload complete'
+                                      : uploadStatus === 'error'
+                                        ? 'Upload failed'
+                                        : null}
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -272,7 +332,7 @@ export function MessageComposer({
                                 onClick={applyMetaAiMention}
                                 className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-slate-50 rounded-xl"
                             >
-                                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-fuchsia-500 via-blue-500 to-cyan-400 flex items-center justify-center text-white shadow-sm">
+                                <div className="h-9 w-9 rounded-full bg-linear-to-br from-fuchsia-500 via-blue-500 to-cyan-400 flex items-center justify-center text-white shadow-sm">
                                     <Sparkles className="h-5 w-5" />
                                 </div>
                                 <div className="flex flex-col">
@@ -317,7 +377,7 @@ export function MessageComposer({
                         <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,image/jpeg,image/png,image/gif,image/webp,image/bmp"
+                            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                             onChange={handleImageSelect}
                             className="hidden"
                         />

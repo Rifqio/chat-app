@@ -1,43 +1,61 @@
-import { Search, Settings, LogOut } from 'lucide-react'
-import { Avatar, Input, Button } from '@/components/ui'
-import { UserListItem } from './user-list-item'
-import { ProfileSettingsModal } from '@/components/profile-settings-modal'
-import { useAuthStore, useChatStore } from '@/stores'
-import { useNavigate } from 'react-router'
-import { useState } from 'react'
+import { Search, Settings, LogOut, Plus } from 'lucide-react';
+import { Avatar, Input, Button } from '@/components/ui';
+import { UserListItem } from './user-list-item';
+import { ProfileSettingsModal } from '@/components/profile-settings-modal';
+import { UserPickerModal } from './user-picker-modal';
+import { useAuthStore, useChatStore } from '@/stores';
+import { useNavigate } from 'react-router';
+import { useState } from 'react';
+import { api } from '@/services';
+import type { User } from '@/types';
 
 export function Sidebar() {
-    const navigate = useNavigate()
-    const { user, logout } = useAuthStore()
+    const navigate = useNavigate();
+    const { user, logout } = useAuthStore();
     const {
         conversations,
         activeConversationId,
         setActiveConversation,
         resetStore,
-    } = useChatStore()
-    const [searchQuery, setSearchQuery] = useState('')
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+        users,
+        upsertConversation,
+    } = useChatStore();
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isUserPickerOpen, setIsUserPickerOpen] = useState(false);
 
-    if (!user) return null
+    if (!user) return null;
 
     const filteredConversations = conversations.filter((conv) => {
         const otherParticipant = conv.participants.find(
             (p) => p.id !== user.id,
-        )
+        );
         return otherParticipant?.name
             .toLowerCase()
-            .includes(searchQuery.toLowerCase())
-    })
+            .includes(searchQuery.toLowerCase());
+    });
 
     const handleLogout = () => {
-        resetStore()
-        logout()
-        navigate('/auth')
-    }
+        resetStore();
+        logout();
+        navigate('/auth');
+    };
+
+    const handleStartConversation = async (targetUser: User) => {
+        try {
+            const conversation = await api.conversations.getOrCreate(
+                targetUser.id,
+            );
+            upsertConversation(conversation);
+            setActiveConversation(conversation.id);
+        } catch (error) {
+            console.error('Failed to start conversation', error);
+        }
+    };
 
     return (
         <>
-            <aside className="flex flex-col h-full w-80 border-r border-slate-200 bg-white">
+            <aside className="relative flex flex-col h-full w-80 border-r border-slate-200 bg-white">
                 {/* Search */}
                 <div className="p-4 border-b border-slate-200">
                     <Input
@@ -59,7 +77,7 @@ export function Sidebar() {
                             <p className="text-slate-500 text-sm">
                                 {searchQuery
                                     ? 'No conversations found'
-                                    : 'No conversations yet'}
+                                    : 'Start a chat by clicking the plus button below to get things going.'}
                             </p>
                         </div>
                     ) : (
@@ -79,6 +97,18 @@ export function Sidebar() {
                             ))}
                         </div>
                     )}
+                </div>
+
+                {/* New conversation button */}
+                <div className="absolute right-0 bottom-32 translate-x-1/2 cursor-pointer">
+                    <Button
+                        size="icon"
+                        className="rounded-full shadow-lg h-10 w-10"
+                        aria-label="Start new chat"
+                        onClick={() => setIsUserPickerOpen(true)}
+                    >
+                        <Plus className="h-5 w-5" />
+                    </Button>
                 </div>
 
                 {/* Account actions */}
@@ -125,6 +155,14 @@ export function Sidebar() {
                 isOpen={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
             />
+
+            <UserPickerModal
+                isOpen={isUserPickerOpen}
+                onClose={() => setIsUserPickerOpen(false)}
+                currentUserId={user.id}
+                users={users}
+                onSelect={handleStartConversation}
+            />
         </>
-    )
+    );
 }

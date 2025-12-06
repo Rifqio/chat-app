@@ -2,26 +2,32 @@ import { useEffect, useRef } from 'react'
 import { Sidebar, ChatPanel, DetailPanel } from '@/features/chat'
 import { useWebSocket } from '@/hooks'
 import { useAuthStore, useChatStore } from '@/stores'
-import { mockConversations, mockMessages, mockUsers } from '@/mocks'
+import { api } from '@/services'
 
 export function ChatLayout() {
     useWebSocket()
 
     const { user } = useAuthStore()
-    const { conversations, setUsers, setConversations, setMessages } = useChatStore()
+    const { setUsers, setConversations } = useChatStore()
     const dataLoadedRef = useRef(false)
 
-    // TODO: Change to use API calls when they are implemented
     useEffect(() => {
-        if (user && conversations.length === 0 && !dataLoadedRef.current) {
+        const load = async () => {
+            if (!user || dataLoadedRef.current) return
             dataLoadedRef.current = true
-            setUsers(mockUsers)
-            setConversations(mockConversations)
-            Object.entries(mockMessages).forEach(([convId, msgs]) => {
-                setMessages(convId, msgs)
-            })
+            try {
+                const [fetchedUsers, fetchedConversations] = await Promise.all([
+                    api.users.getAll(),
+                    api.conversations.getAll(),
+                ])
+                setUsers(fetchedUsers)
+                setConversations(fetchedConversations)
+            } catch (error) {
+                console.error('Failed to load initial data', error)
+            }
         }
-    }, [user, conversations.length, setUsers, setConversations, setMessages])
+        load()
+    }, [user, setUsers, setConversations])
 
     return (
         <div className="h-screen flex bg-white overflow-hidden">

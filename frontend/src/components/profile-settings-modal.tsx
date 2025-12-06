@@ -1,103 +1,127 @@
-import { useState, useRef } from 'react'
-import { Camera, User } from 'lucide-react'
-import { Modal } from '@/components/ui/modal'
-import { Button, Input, Avatar } from '@/components/ui'
-import { useAuthStore } from '@/stores'
-import { cn } from '@/lib/utils'
-import type { UserStatus } from '@/types'
+import { useState, useRef } from 'react';
+import { Camera, User } from 'lucide-react';
+import { Modal } from '@/components/ui/modal';
+import { Button, Input, Avatar } from '@/components/ui';
+import { useAuthStore, useChatStore } from '@/stores';
+import { cn } from '@/lib/utils';
+import { api } from '@/services';
 
 interface ProfileSettingsModalProps {
-    isOpen: boolean
-    onClose: () => void
+    isOpen: boolean;
+    onClose: () => void;
 }
-
-const statusOptions: { value: UserStatus; label: string; color: string }[] = [
-    { value: 'online', label: 'Online', color: 'bg-emerald-500' },
-    { value: 'away', label: 'Away', color: 'bg-amber-500' },
-    { value: 'offline', label: 'Appear Offline', color: 'bg-slate-400' },
-]
 
 export function ProfileSettingsModal({
     isOpen,
     onClose,
 }: ProfileSettingsModalProps) {
-    const { user, setUser } = useAuthStore()
-    const [name, setName] = useState(user?.name || '')
-    const [status, setStatus] = useState<UserStatus>(user?.status || 'online')
-    const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-    const [isSaving, setIsSaving] = useState(false)
-    const [error, setError] = useState<string | null>(null)
-    const fileInputRef = useRef<HTMLInputElement>(null)
+    const { user, setUser } = useAuthStore();
+    const { upsertUser } = useChatStore();
+    const [name, setName] = useState(user?.name || '');
+    const [about, setAbout] = useState(user?.about || '');
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+    const [uploadProgress, setUploadProgress] = useState<number>(0);
+    const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+    const [uploadMessage, setUploadMessage] = useState<string>('');
+    const [avatarKey, setAvatarKey] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    if (!user) return null
+    if (!user) return null;
 
-    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file) return
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
 
-        // Validate file type
         const validTypes = [
             'image/jpeg',
             'image/png',
             'image/gif',
             'image/webp',
-        ]
+        ];
         if (!validTypes.includes(file.type)) {
             setError(
                 'Please select a valid image file (JPG, PNG, GIF, or WebP)',
-            )
-            return
+            );
+            return;
         }
 
         // Validate file size (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
-            setError('Image must be less than 5MB')
-            return
+            setError('Image must be less than 5MB');
+            return;
         }
 
-        setError(null)
-        const reader = new FileReader()
+        setError(null);
+        setUploadStatus('uploading');
+        setUploadProgress(0);
+        setAvatarKey(null);
+
+        const reader = new FileReader();
         reader.onloadend = () => {
-            setAvatarPreview(reader.result as string)
+            setAvatarPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+
+        try {
+            const result = await api.users.uploadAvatar(
+                file,
+                (progress) => setUploadProgress(progress),
+            );
+            setUploadStatus('success');
+            setUploadMessage('Upload successful');
+            setAvatarKey(result.key);
+            setUploadProgress(100);
+            console.log('Avatar upload result:', result);
+        } catch (err) {
+            console.error('Avatar upload failed', err);
+            setUploadStatus('error');
+            setUploadMessage('Upload failed');
         }
-        reader.readAsDataURL(file)
-    }
+    };
 
     const handleSave = async () => {
         if (!name.trim()) {
-            setError('Name is required')
-            return
+            setError('Name is required');
+            return;
         }
 
         if (name.trim().length < 2) {
-            setError('Name must be at least 2 characters')
-            return
+            setError('Name must be at least 2 characters');
+            return;
         }
 
-        setIsSaving(true)
-        setError(null)
+        setIsSaving(true);
+        setError(null);
 
         try {
-            // Simulate API call delay
-            await new Promise((resolve) => setTimeout(resolve, 500))
+            const payload = {
+                name: name.trim(),
+                about: about.trim(),
+                avatar: avatarKey ?? undefined,
+            };
+            const updated = await api.users.updateProfile(payload);
 
-            // Update user in store
+            // Update user in store and chat caches
             setUser({
                 ...user,
-                name: name.trim(),
-                status,
-                avatar: avatarPreview || user.avatar,
-            })
+                ...updated,
+                status: user.status,
+            });
+            upsertUser({ ...updated, status: user.status });
 
-            onClose()
-        } catch {
-            setError('Failed to update profile')
+            onClose();
+        } catch (err) {
+            console.error(err);
+            setError('Failed to update profile');
+            setUploadStatus('error');
         } finally {
-            setIsSaving(false)
+            setIsSaving(false);
         }
-    }
+    };
 
-    const displayAvatar = avatarPreview || user.avatar
+    const displayAvatar = avatarPreview || user.avatar;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Profile Settings">
@@ -126,6 +150,32 @@ export function ProfileSettingsModal({
                             className="hidden"
                         />
                     </div>
+                    {uploadStatus !== 'idle' && (
+                        <div className="w-full mt-3">
+                            <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                                <div
+                                    className={cn(
+                                        'h-full transition-all',
+                                        uploadStatus === 'success'
+                                            ? 'bg-emerald-500'
+                                            : uploadStatus === 'error'
+                                              ? 'bg-red-500'
+                                              : 'bg-blue-500',
+                                    )}
+                                    style={{ width: `${uploadProgress}%` }}
+                                />
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">
+                                {uploadStatus === 'uploading'
+                                    ? `Uploading... ${uploadProgress}%`
+                                    : uploadStatus === 'success'
+                                      ? uploadMessage || 'Upload complete'
+                                      : uploadStatus === 'error'
+                                        ? 'Upload failed'
+                                        : null}
+                            </p>
+                        </div>
+                    )}
                     <p className="mt-2 text-sm text-slate-600">
                         Personalize how others see you in conversations.
                     </p>
@@ -139,41 +189,26 @@ export function ProfileSettingsModal({
                         onChange={(e) => setName(e.target.value)}
                         placeholder="Enter your name"
                         leftIcon={<User className="h-4 w-4" />}
-                        error={error && error.includes('Name') ? error : undefined}
+                        error={
+                            error && error.includes('Name') ? error : undefined
+                        }
                     />
 
-                    {/* Status */}
+                    {/* About */}
                     <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <label className="text-sm font-medium text-slate-700">
-                                Status
-                            </label>
-                            <span className="text-xs text-slate-500">
-                                Pick how you appear to others
-                            </span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                            {statusOptions.map((option) => (
-                                <button
-                                    key={option.value}
-                                    onClick={() => setStatus(option.value)}
-                                    className={cn(
-                                        'flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all shadow-sm',
-                                        status === option.value
-                                            ? 'border-slate-900 bg-white text-slate-900 shadow-md'
-                                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
-                                    )}
-                                >
-                                    <span
-                                        className={cn(
-                                            'h-2.5 w-2.5 rounded-full',
-                                            option.color,
-                                        )}
-                                    />
-                                    {option.label}
-                                </button>
-                            ))}
-                        </div>
+                        <label className="text-sm font-medium text-slate-700">
+                            About
+                        </label>
+                        <textarea
+                            value={about}
+                            onChange={(e) => setAbout(e.target.value)}
+                            placeholder="Share a short status or bio"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-inner focus:border-slate-400 focus:outline-none min-h-[80px]"
+                            maxLength={240}
+                        />
+                        <p className="text-xs text-slate-500">
+                            Visible to people you chat with. {about.length}/240
+                        </p>
                     </div>
                 </div>
 
@@ -201,5 +236,5 @@ export function ProfileSettingsModal({
                 </div>
             </div>
         </Modal>
-    )
+    );
 }

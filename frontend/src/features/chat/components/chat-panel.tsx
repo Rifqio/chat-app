@@ -9,6 +9,7 @@ import { useAuthStore, useChatStore } from '@/stores'
 import { useWebSocket } from '@/hooks'
 import { generateId, cn } from '@/lib/utils'
 import type { Message, User } from '@/types'
+import { api } from '@/services'
 
 export function ChatPanel() {
     const { user: currentUser } = useAuthStore()
@@ -19,8 +20,9 @@ export function ChatPanel() {
         typingIndicators,
         toggleDetailPanel,
         addMessage,
+        setMessages,
     } = useChatStore()
-    const { sendMessage, startTyping, stopTyping } = useWebSocket()
+    const { sendMessage, startTyping, stopTyping, markAsRead } = useWebSocket()
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const messagesContainerRef = useRef<HTMLDivElement>(null)
     const metaAiUser: User = useMemo(
@@ -78,10 +80,14 @@ export function ChatPanel() {
         }
     }, [conversationMessages, isTyping, isSearchOpen])
 
-    const handleSendMessage = (content: string, imageUrl?: string) => {
+    const handleSendMessage = (
+        content: string,
+        media?: { key: string; url?: string; mimeType?: string },
+    ) => {
         if (!activeConversationId || !currentUser) return
 
         const trimmedContent = content.trim()
+        const displayContent = trimmedContent || (media ? 'Photo' : '')
         const isMetaAiPrompt = /^@smith\s*ai\b/i.test(trimmedContent)
         const promptBody = trimmedContent.replace(/^@smith\s*ai\b[:\s]*/i, '')
 
@@ -89,14 +95,19 @@ export function ChatPanel() {
             id: generateId(),
             conversationId: activeConversationId,
             senderId: currentUser.id,
-            content: trimmedContent,
-            imageUrl,
+            content: displayContent,
+            imageUrl: media?.url,
             status: 'sending',
             createdAt: new Date(),
         }
 
         addMessage(activeConversationId, newMessage)
-        sendMessage(activeConversationId, content, imageUrl)
+        sendMessage(
+            activeConversationId,
+            content,
+            media?.key,
+            media?.mimeType,
+        )
 
         if (isMetaAiPrompt) {
             const aiReply: Message = {
@@ -162,7 +173,34 @@ export function ChatPanel() {
         setHighlightedMessageId(null)
     }
 
-    // Empty state - no conversation selected
+    useEffect(() => {
+        const loadMessages = async () => {
+            if (!activeConversationId) return
+            try {
+                const { messages: fetched } =
+                    await api.messages.getByConversation(activeConversationId)
+                setMessages(activeConversationId, fetched)
+            } catch (error) {
+                console.error('Failed to load messages', error)
+            }
+        }
+        loadMessages()
+    }, [activeConversationId, setMessages])
+
+    useEffect(() => {
+        if (!activeConversationId || !currentUser) return
+        const newestUnread = [...(messages[activeConversationId] || [])]
+            .reverse()
+            .find(
+                (m) =>
+                    m.senderId !== currentUser.id &&
+                    m.status !== 'read',
+            )
+        if (newestUnread) {
+            markAsRead(activeConversationId, newestUnread.id)
+        }
+    }, [activeConversationId, messages, currentUser, markAsRead])
+
     if (!activeConversation || !otherParticipant || !currentUser) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center bg-slate-50">
@@ -261,6 +299,7 @@ export function ChatPanel() {
             </div>
 
             <MessageComposer
+                conversationId={activeConversationId}
                 onSend={handleSendMessage}
                 onTypingStart={handleTypingStart}
                 onTypingStop={handleTypingStop}

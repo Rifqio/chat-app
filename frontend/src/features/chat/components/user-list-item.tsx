@@ -76,7 +76,8 @@ export function UserListItem({
                             <MessageStatusIcon status={lastMessage.status} />
                         )}
                         <p className="text-sm text-slate-500 truncate">
-                            {lastMessage?.content || 'No messages yet'}
+                            {lastMessage?.content ||
+                                (lastMessage?.imageUrl ? 'Photo' : 'No messages yet')}
                         </p>
                     </div>
                     {conversation.unreadCount > 0 && (

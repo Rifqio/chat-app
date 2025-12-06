@@ -1,3 +1,14 @@
+declare namespace Express {
+  export interface Request {
+    file?: {
+      buffer: Buffer
+      mimetype: string
+      size: number
+      originalname: string
+    }
+  }
+}
+
 import type { Response } from 'express'
 
 declare global {

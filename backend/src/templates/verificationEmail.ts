@@ -29,7 +29,7 @@ export const buildVerificationEmail = (opts: {
                 <td style="padding-bottom:8px;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:${baseStyles.muted};">ChatApp</td>
               </tr>
               <tr>
-                <td style="font-size:24px;font-weight:700;padding-bottom:12px;letter-spacing:-0.3px;">Confirm your email</td>
+                <td style="font-size:24px;font-weight:700;padding-bottom:12px;letter-spacing:-0.3px;color:${baseStyles.text};">Confirm your email</td>
               </tr>
               <tr>
                 <td style="color:${baseStyles.muted};font-size:15px;line-height:22px;padding-bottom:20px;">

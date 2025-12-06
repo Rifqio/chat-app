@@ -94,14 +94,6 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
                 Sign in
             </Button>
 
-            {/* Demo credentials hint */}
-            <div className="p-3 bg-slate-50 rounded-lg text-center">
-                <p className="text-xs text-slate-500 mb-1">Demo credentials:</p>
-                <p className="text-xs font-mono text-slate-600">
-                    demo@example.com / Demo123!
-                </p>
-            </div>
-
             <p className="text-center text-sm text-slate-600">
                 Don't have an account?{' '}
                 <button

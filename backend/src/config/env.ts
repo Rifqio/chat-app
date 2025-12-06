@@ -47,6 +47,9 @@ export const env = {
         bucket: process.env.AWS_S3_BUCKET ?? '',
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        profileImageBucket: process.env.PROFILE_IMAGE_BUCKET ?? '',
+        userMediaBucket: process.env.USER_MEDIA_BUCKET ?? '',
+        s3Endpoint: process.env.AWS_S3_ENDPOINT ?? '',
     },
 }
 

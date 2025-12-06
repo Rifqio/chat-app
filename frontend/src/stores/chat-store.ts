@@ -12,6 +12,8 @@ interface ChatStore {
     setUsers: (users: User[]) => void
     updateUserStatus: (userId: string, status: User['status']) => void
     setConversations: (conversations: Conversation[]) => void
+    upsertConversation: (conversation: Conversation) => void
+    upsertUser: (user: User) => void
     setActiveConversation: (conversationId: string | null) => void
     addMessage: (conversationId: string, message: Message) => void
     setMessages: (conversationId: string, messages: Message[]) => void
@@ -31,6 +33,7 @@ interface ChatStore {
         currentUserId: string,
     ) => User | undefined
     resetStore: () => void
+    updateStatusesFromSummary: (onlineIds: string[]) => void
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -49,22 +52,88 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 user.id === userId ? { ...user, status } : user,
             ),
         })),
+    updateStatusesFromSummary: (onlineIds) =>
+        set((state) => {
+            const onlineSet = new Set(onlineIds)
+            return {
+                users: state.users.map((user) => ({
+                    ...user,
+                    status: onlineSet.has(user.id) ? 'online' : 'offline',
+                })),
+            }
+        }),
 
     setConversations: (conversations) => set({ conversations }),
+
+    upsertConversation: (conversation) =>
+        set((state) => {
+            const exists = state.conversations.some(
+                (c) => c.id === conversation.id,
+            )
+            const updated = exists
+                ? state.conversations.map((c) =>
+                      c.id === conversation.id ? conversation : c,
+                  )
+                : [...state.conversations, conversation]
+
+            const sorted = [...updated].sort(
+                (a, b) =>
+                    new Date(b.updatedAt).getTime() -
+                    new Date(a.updatedAt).getTime(),
+            )
+
+            return { conversations: sorted }
+        }),
+
+    upsertUser: (user) =>
+        set((state) => {
+            const users = state.users.some((u) => u.id === user.id)
+                ? state.users.map((u) => (u.id === user.id ? user : u))
+                : [...state.users, user]
+
+            const conversations = state.conversations.map((conv) => ({
+                ...conv,
+                participants: conv.participants.map((p) =>
+                    p.id === user.id ? { ...p, ...user } : p,
+                ),
+            }))
+
+            return { users, conversations }
+        }),
 
     setActiveConversation: (conversationId) =>
         set({ activeConversationId: conversationId }),
 
     addMessage: (conversationId, message) =>
-        set((state) => ({
-            messages: {
-                ...state.messages,
-                [conversationId]: [
-                    ...(state.messages[conversationId] || []),
-                    message,
-                ],
-            },
-            conversations: state.conversations
+        set((state) => {
+            const existing = state.messages[conversationId] || []
+
+            // Deduplicate by id
+            const idIndex = existing.findIndex((m) => m.id === message.id)
+
+            // Or replace optimistic sending with same sender/content
+            const optimisticIndex =
+                idIndex === -1
+                    ? existing.findIndex(
+                          (m) =>
+                              m.status === 'sending' &&
+                              m.senderId === message.senderId &&
+                              m.content === message.content,
+                      )
+                    : -1
+
+            let nextMessages: typeof existing
+            if (idIndex >= 0) {
+                nextMessages = [...existing]
+                nextMessages[idIndex] = message
+            } else if (optimisticIndex >= 0) {
+                nextMessages = [...existing]
+                nextMessages[optimisticIndex] = message
+            } else {
+                nextMessages = [...existing, message]
+            }
+
+            const conversations = state.conversations
                 .map((conv) =>
                     conv.id === conversationId
                         ? {
@@ -78,8 +147,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                     (a, b) =>
                         new Date(b.updatedAt).getTime() -
                         new Date(a.updatedAt).getTime(),
-                ),
-        })),
+                )
+
+            return {
+                messages: {
+                    ...state.messages,
+                    [conversationId]: nextMessages,
+                },
+                conversations,
+            }
+        }),
 
     setMessages: (conversationId, messages) =>
         set((state) => ({

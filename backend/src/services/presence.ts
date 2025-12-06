@@ -34,6 +34,11 @@ class PresenceStore {
     getOnlineUsers() {
         return Array.from(this.users.keys())
     }
+
+    getSockets(userId: string) {
+        const entry = this.users.get(userId)
+        return entry ? Array.from(entry.sockets) : []
+    }
 }
 
 export const presenceStore = new PresenceStore()

@@ -97,10 +97,38 @@ export const authApi = {
 export const usersApi = {
     getAll: () => request<User[]>('/users'),
     getById: (id: string) => request<User>(`/users/${id}`),
+    updateProfile: (input: { name?: string; about?: string; avatar?: string }) =>
+        request<User>('/users/me', {
+            method: 'PATCH',
+            data: input,
+        }),
+    uploadAvatar: (
+        file: File,
+        onUploadProgress?: (progress: number) => void,
+    ) => {
+        const formData = new FormData()
+        formData.append('avatar', file)
+
+        return apiClient
+            .post<{ success: boolean; data: { url: string; key: string } }>(
+                '/users/me/avatar',
+                formData,
+                {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                    onUploadProgress: (event) => {
+                        if (!onUploadProgress || !event.total) return
+                        const progress = Math.round((event.loaded * 100) / event.total)
+                        onUploadProgress(progress)
+                    },
+                },
+            )
+            .then((res) => res.data.data)
+    },
 }
 
 export const conversationsApi = {
-    getAll: () => request<Conversation[]>('/conversations'),
+    getAll: () =>
+        request<Conversation[]>('/conversations'),
     getById: (id: string) => request<Conversation>(`/conversations/${id}`),
     create: (participantId: string) =>
         request<Conversation>('/conversations', {
@@ -122,11 +150,39 @@ export const messagesApi = {
                 params: { page, limit },
             },
         ),
-    send: (conversationId: string, content: string, imageUrl?: string) =>
+    send: (
+        conversationId: string,
+        content: string,
+        mediaKey?: string,
+        mediaMimeType?: string,
+    ) =>
         request<Message>(`/conversations/${conversationId}/messages`, {
             method: 'POST',
-            data: { content, imageUrl },
+            data: { content, mediaKey, mediaMimeType },
         }),
+    uploadMedia: (
+        conversationId: string,
+        file: File,
+        onUploadProgress?: (progress: number) => void,
+    ) => {
+        const formData = new FormData()
+        formData.append('media', file)
+
+        return apiClient
+            .post<{ success: boolean; data: { url: string; key: string; mimeType: string } }>(
+                `/conversations/${conversationId}/media`,
+                formData,
+                {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                    onUploadProgress: (event) => {
+                        if (!onUploadProgress || !event.total) return
+                        const progress = Math.round((event.loaded * 100) / event.total)
+                        onUploadProgress(progress)
+                    },
+                },
+            )
+            .then((res) => res.data.data)
+    },
 }
 
 export const api = {
