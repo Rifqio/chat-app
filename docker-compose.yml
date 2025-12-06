@@ -16,6 +16,18 @@ services:
     restart: unless-stopped
     command: sh -c "npx prisma migrate deploy && node dist/index.js"
 
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-chatapp}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
@@ -36,3 +48,6 @@ services:
 
 networks:
   app:
+
+volumes:
+  postgres_data:
